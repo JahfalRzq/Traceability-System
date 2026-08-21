@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { weighingRouter } from "./weighing";
+import weighingRouter from "./weighingRoutes";
 
 const router = Router();
 

@@ -1,5 +1,5 @@
-import { ITraceabilityProvider } from "./traceabilityProvider";
-import { TraceabilityInfo } from "../types/existingSystem.types";
+import { ITraceabilityProvider } from "./traceabilityProvider.interface";
+import { TraceabilityInfo } from "../../types/existingSystem.types";
 
 // Fixture data untuk skenario testing yang deterministik
 const TRACEABILITY_FIXTURES: Record<string, TraceabilityInfo> = {

@@ -32,7 +32,9 @@
       "@routes/*": ["routes/*"],
       "@middlewares/*": ["middlewares/*"],
       "@utils/*": ["utils/*"],
-      "@types/*": ["types/*"]
+      "@types/*": ["types/*"],
+      "@providers/*": ["providers/*"],
+      "@edge/*": ["edge/*"]
     }
   },
   "include": ["src/**/*.ts"],

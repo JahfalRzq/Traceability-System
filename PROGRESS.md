@@ -35,12 +35,12 @@ Prinsip kunci: **mini PC (edge) tidak pernah akses database langsung** — cuma 
 |---|---|
 | Backend | Express.js + TypeScript |
 | ORM | TypeORM |
-| Database | SQL Server (native Windows, belum di-Docker-kan) |
+| Database | SQL Server (Docker Compose & Native support) |
 | Caching | Redis (di-skip sementara, kode sudah ada tapi di-comment) |
 | Komunikasi Edge→Central | HTTP (axios) |
 | Serial Communication | `serialport` package, RS-232/RS-485 via COM port |
 | Dev tooling | `ts-node-dev`, TypeORM CLI migrations |
-| Containerization | Docker (direncanakan, belum dieksekusi — SQL Server tetap native untuk sekarang) |
+| Containerization | Docker Compose (SQL Server + Redis + App) |
 
 ---
 
@@ -49,7 +49,7 @@ Prinsip kunci: **mini PC (edge) tidak pernah akses database langsung** — cuma 
 ### 3.1 Setup & Infrastruktur
 - Instalasi Node.js, SQL Server, database `ScrapSystemManagement` dibuat
 - SQL Server Authentication (mixed mode) diaktifkan, user aplikasi `scrap_app_user` dibuat dengan role `db_owner`
-- Struktur folder microservices-ready: `services/scale-service/src/{config,entities,services,controllers,routes,middlewares,utils,types,migrations,mock}`
+- Struktur folder clean: `src/{config,entities,services,controllers,routes,middlewares,utils,types,migrations,mock,providers,edge}`
 - TypeORM migration berjalan (`weighing_records`, `stations` sudah ter-generate ke SQL Server)
 
 ### 3.2 Simulasi Hardware (Virtual COM Port)
@@ -118,7 +118,7 @@ Urutan di bawah bukan prioritas mutlak — didiskusikan lagi sesuai kebutuhan:
 4. **Real CCTV provider** — implementasi `ICctvProvider` yang beneran akses kamera, begitu ada akses hardware
 5. **Real Traceability & PO provider** — implementasi `ITraceabilityProvider`/`IPOProvider` yang beneran manggil API sistem existing, begitu ada akses
 6. **Redis caching** — kode sudah ada tapi di-comment, belum diaktifkan
-7. **Docker containerization** — belum dieksekusi sama sekali; SQL Server masih native Windows
+7. ~~**Docker containerization**~~ ✅ — Docker Compose sudah dibuat (SQL Server + Redis + App)
 8. **Endpoint public dashboard & public web** — belum dibuat endpoint terpisah untuk menampilkan data ke 2 kanal ini (saat ini cuma data tersimpan di `WeighingRecord`, belum ada view/endpoint khusus)
 9. **Autentikasi & otorisasi user (operator/GL/Manager)** — saat ini `operatorName`/`approverName` dikirim bebas via body request, belum ada sistem login/role yang sesungguhnya
 10. **Auth service / user management** — kalau microservices lain (auth-service dll) direncanakan, belum mulai dibangun

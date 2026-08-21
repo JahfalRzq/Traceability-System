@@ -62,10 +62,16 @@ export async function submitHandler(req: Request, res: Response) {
   try {
     const id = req.params.id as string;
     const { stage, operatorName } = req.body;
+    if (!stage || !operatorName) {
+      return res.status(400).json({ error: "stage dan operatorName wajib diisi" });
+    }
     const station = (req as any).station as Station;
     const record = await submitWeighing(id, stage as CurrentStage, operatorName, station.stationCode);
     res.json(record);
   } catch (err: any) {
+    if (err.message.includes("tidak ditemukan")) {
+      return res.status(404).json({ error: err.message });
+    }
     res.status(400).json({ error: err.message });
   }
 }
@@ -74,9 +80,15 @@ export async function approveHandler(req: Request, res: Response) {
   try {
     const id = req.params.id as string;
     const { stage, approverName } = req.body;
+    if (!stage || !approverName) {
+      return res.status(400).json({ error: "stage dan approverName wajib diisi" });
+    }
     const record = await approveWeighing(id, stage as CurrentStage, approverName);
     res.json(record);
   } catch (err: any) {
+    if (err.message.includes("tidak ditemukan")) {
+      return res.status(404).json({ error: err.message });
+    }
     res.status(400).json({ error: err.message });
   }
 }
@@ -85,9 +97,15 @@ export async function rejectHandler(req: Request, res: Response) {
   try {
     const id = req.params.id as string;
     const { stage, approverName, reason } = req.body;
+    if (!stage || !approverName || !reason) {
+      return res.status(400).json({ error: "stage, approverName, dan reason wajib diisi" });
+    }
     const record = await rejectWeighing(id, stage as CurrentStage, approverName, reason);
     res.json(record);
   } catch (err: any) {
+    if (err.message.includes("tidak ditemukan")) {
+      return res.status(404).json({ error: err.message });
+    }
     res.status(400).json({ error: err.message });
   }
 }

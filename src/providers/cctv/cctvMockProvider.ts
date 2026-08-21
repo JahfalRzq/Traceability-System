@@ -1,8 +1,8 @@
 import fs from "fs";
 import path from "path";
-import { ICctvProvider, CapturedSnapshot } from "./cctvService";
+import { ICctvProvider, CapturedSnapshot } from "./cctvProvider.interface";
 
-const SNAPSHOT_DIR = path.join(__dirname, "../../logs/cctv-snapshots");
+const SNAPSHOT_DIR = path.join(__dirname, "../../../logs/cctv-snapshots");
 
 function ensureSnapshotDirExists() {
   if (!fs.existsSync(SNAPSHOT_DIR)) {

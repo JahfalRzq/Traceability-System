@@ -44,6 +44,8 @@ export async function startWeighingSession(deliveryBarcode: string, stage: Curre
 
   if (!record) {
     record = weighingRepo.create({ deliveryBarcode, currentStage: stage });
+  } else {
+    assertStageMatches(record, stage);
   }
 
   // ↓ INI YANG HILANG — tulis hasil validasi ke record, setiap kali scan

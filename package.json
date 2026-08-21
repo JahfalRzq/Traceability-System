@@ -8,8 +8,10 @@
     "build": "tsc",
     "start": "node -r tsconfig-paths/register dist/server.js",
     "typeorm": "typeorm-ts-node-commonjs -d src/config/database.ts",
+    "typeorm:prod": "typeorm -d dist/config/database.js",
     "migration:generate": "npm run typeorm -- migration:generate",
     "migration:run": "npm run typeorm -- migration:run",
+    "migration:run:prod": "npm run typeorm:prod -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
     "migration:create": "npm run typeorm -- migration:create",
     "mock:scale": "ts-node-dev --respawn --transpile-only src/mock/mockScaleGenerator.ts"
@@ -28,15 +30,17 @@
     "redis": "^5.12.1",
     "reflect-metadata": "^0.2.2",
     "serialport": "^13.0.0",
+    "swagger-ui-express": "^5.0.1",
+    "tsconfig-paths": "^4.2.0",
     "typeorm": "^0.3.31"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.2",
+    "@types/swagger-ui-express": "^4.1.8",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.6.3"
   }
 }

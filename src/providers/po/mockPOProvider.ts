@@ -1,5 +1,5 @@
-import { IPOProvider } from "./poProvider";
-import { PurchaseOrderInfo } from "../types/existingSystem.types";
+import { IPOProvider } from "./poProvider.interface";
+import { PurchaseOrderInfo } from "../../types/existingSystem.types";
 
 // Fixture data untuk skenario testing yang deterministik (keyed by materialLotBatch)
 const PO_FIXTURES: Record<string, PurchaseOrderInfo> = {

@@ -2,10 +2,10 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import axios from "axios";
-import { startSerialListener } from "./services/serialListenerService";
-import { startRawFileWatcher } from "./services/rawFileWatcherService";
+import { startSerialListener } from "./edge/serialListenerService";
+import { startRawFileWatcher } from "./edge/rawFileWatcherService";
 import { ParsedWeighingData } from "./types/weighing.types";
-import { MockCctvProvider } from "./services/cctvMockProvider"; // sesuaikan path
+import { MockCctvProvider } from "./providers/cctv/cctvMockProvider";
 
 const STATION_CODE = process.env.STATION_CODE;
 const CENTRAL_API_BASE_URL = process.env.CENTRAL_API_BASE_URL;

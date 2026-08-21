@@ -1,5 +1,5 @@
-import { MockTraceabilityProvider } from "./mockTraceabilityProvider";
-import { MockPOProvider } from "./mockPOProvider";
+import { MockTraceabilityProvider } from "../providers/traceability/mockTraceabilityProvider";
+import { MockPOProvider } from "../providers/po/mockPOProvider";
 import { ExistingSystemValidationResult } from "../types/existingSystem.types";
 
 const traceabilityProvider = new MockTraceabilityProvider(); // nanti ganti: new RealTraceabilityProvider(config)
