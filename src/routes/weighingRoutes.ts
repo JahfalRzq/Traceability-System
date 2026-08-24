@@ -6,6 +6,7 @@ import {
   submitHandler,
   approveHandler,
   rejectHandler,
+  attemptHistoryHandler,
 } from "../controllers/weighingController";
 import { identifyStation, validateStationStage } from "../middlewares/stationValidation";
 
@@ -17,5 +18,6 @@ router.get("/live-reading", identifyStation, liveReadingHandler);
 router.post("/:id/submit", validateStationStage, submitHandler);
 router.post("/:id/approve", approveHandler);
 router.post("/:id/reject", rejectHandler);
+router.get("/:id/history", attemptHistoryHandler);
 
 export default router;

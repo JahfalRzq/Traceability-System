@@ -1,12 +1,12 @@
 import { AppDataSource } from "../config/database";
 import { WeighingRecord, CurrentStage, ApprovalStatus } from "../entities/WeighingRecord";
+import { WeighingAttemptLog } from "../entities/WeighingAttemptLog";
 import { ParsedWeighingData } from "../types/weighing.types";
 import { validateAgainstExistingSystems } from "./existingSystemValidationService";
 
-
 const weighingRepo = AppDataSource.getRepository(WeighingRecord);
+const attemptLogRepo = AppDataSource.getRepository(WeighingAttemptLog);
 
-// Buffer sekarang per-station (Map), bukan 1 variable global lagi
 const latestReadingsByStation = new Map<string, ParsedWeighingData>();
 
 export function updateLatestReading(stationCode: string, data: ParsedWeighingData) {
@@ -32,8 +32,6 @@ function assertStageMatches(record: WeighingRecord, stage: CurrentStage) {
 }
 
 export async function startWeighingSession(deliveryBarcode: string, stage: CurrentStage) {
-
-  // Validasi ulang setiap kali scan, di stage manapun
   const validation = await validateAgainstExistingSystems(deliveryBarcode);
 
   if (!validation.isValid) {
@@ -48,7 +46,6 @@ export async function startWeighingSession(deliveryBarcode: string, stage: Curre
     assertStageMatches(record, stage);
   }
 
-  // ↓ INI YANG HILANG — tulis hasil validasi ke record, setiap kali scan
   record.isValidatedWithExistingSystem = true;
   record.materialLotBatch = validation.materialLotBatch ?? null;
   record.poNumber = validation.poNumber ?? null;
@@ -76,30 +73,51 @@ export async function submitWeighing(
 
   const now = new Date();
 
+  // Hitung attempt ke berapa untuk stage ini (buat nomor urut di log)
+  const previousAttempts = await attemptLogRepo.count({
+    where: { weighingRecordId: record.id, stage },
+  });
+  const attemptNumber = previousAttempts + 1;
+
+  // Catat log percobaan ini (belum tahu hasil approve/reject, masih PENDING)
+  const attemptLog = attemptLogRepo.create({
+    weighingRecordId: record.id,
+    stage,
+    attemptNumber,
+    weightValue: latestStableReading.value,
+    rawAsciiPayload: latestStableReading.rawPayload,
+    cctvSnapshotUrl: latestStableReading.cctvSnapshotUrl ?? null,
+    submittedBy: operatorName,
+    submittedAt: now,
+    result: ApprovalStatus.PENDING,
+  });
+  await attemptLogRepo.save(attemptLog);
+
+  // Update kolom "nilai terkini" di record utama (tetap seperti sebelumnya)
   if (stage === CurrentStage.ALMC) {
     record.almcWeightValue = latestStableReading.value;
     record.almcRawAsciiPayload = latestStableReading.rawPayload;
-    record.almcCctvSnapshotUrl = latestStableReading.cctvSnapshotUrl ?? null; // ← baru
+    record.almcCctvSnapshotUrl = latestStableReading.cctvSnapshotUrl ?? null;
     record.almcSubmittedBy = operatorName;
     record.almcSubmittedAt = now;
     record.almcApprovalStatus = ApprovalStatus.PENDING;
-    record.almcRejectionReason = null; // ← baru: reset sisa reject sebelumnya
+    record.almcRejectionReason = null; // ini tetap null karena ini kolom "status saat ini", histori lengkapnya ada di log
   } else if (stage === CurrentStage.DC) {
     record.dcWeightValue = latestStableReading.value;
     record.dcRawAsciiPayload = latestStableReading.rawPayload;
-    record.dcCctvSnapshotUrl = latestStableReading.cctvSnapshotUrl ?? null; // ← baru
+    record.dcCctvSnapshotUrl = latestStableReading.cctvSnapshotUrl ?? null;
     record.dcSubmittedBy = operatorName;
     record.dcSubmittedAt = now;
     record.dcApprovalStatus = ApprovalStatus.PENDING;
-    record.dcRejectionReason = null; // ← baru: reset sisa reject sebelumnya
+    record.dcRejectionReason = null;
   } else if (stage === CurrentStage.TRUCK_SCALE) {
     record.truckScaleWeightValue = latestStableReading.value;
     record.truckScaleRawAsciiPayload = latestStableReading.rawPayload;
-    record.truckScaleCctvSnapshotUrl = latestStableReading.cctvSnapshotUrl ?? null; // ← baru
+    record.truckScaleCctvSnapshotUrl = latestStableReading.cctvSnapshotUrl ?? null;
     record.truckScaleSubmittedBy = operatorName;
     record.truckScaleSubmittedAt = now;
     record.truckScaleApprovalStatus = ApprovalStatus.PENDING;
-    record.truckScaleRejectionReason = null; // ← baru: reset sisa reject sebelumnya
+    record.truckScaleRejectionReason = null;
   }
 
   await weighingRepo.save(record);
@@ -114,6 +132,18 @@ export async function approveWeighing(recordId: string, stage: CurrentStage, app
   assertStageMatches(record, stage);
 
   const now = new Date();
+
+  // Update log percobaan TERAKHIR untuk stage ini jadi APPROVED
+  const latestLog = await attemptLogRepo.findOne({
+    where: { weighingRecordId: record.id, stage },
+    order: { attemptNumber: "DESC" },
+  });
+  if (latestLog) {
+    latestLog.result = ApprovalStatus.APPROVED;
+    latestLog.reviewedBy = approverName;
+    latestLog.reviewedAt = now;
+    await attemptLogRepo.save(latestLog);
+  }
 
   if (stage === CurrentStage.ALMC) {
     record.almcApprovalStatus = ApprovalStatus.APPROVED;
@@ -148,9 +178,24 @@ export async function rejectWeighing(
 
   assertStageMatches(record, stage);
 
+  const now = new Date();
+
+  // Update log percobaan TERAKHIR untuk stage ini jadi REJECTED — INI YANG MENYIMPAN HISTORI
+  const latestLog = await attemptLogRepo.findOne({
+    where: { weighingRecordId: record.id, stage },
+    order: { attemptNumber: "DESC" },
+  });
+  if (latestLog) {
+    latestLog.result = ApprovalStatus.REJECTED;
+    latestLog.reviewedBy = approverName;
+    latestLog.reviewedAt = now;
+    latestLog.rejectionReason = reason;
+    await attemptLogRepo.save(latestLog);
+  }
+
   if (stage === CurrentStage.ALMC) {
     record.almcApprovalStatus = ApprovalStatus.REJECTED;
-    record.almcRejectionReason = reason;
+    record.almcRejectionReason = reason; // status TERKINI (bakal ke-reset null pas submit ulang, tapi histori aman di log)
   } else if (stage === CurrentStage.DC) {
     record.dcApprovalStatus = ApprovalStatus.REJECTED;
     record.dcRejectionReason = reason;
@@ -161,4 +206,12 @@ export async function rejectWeighing(
 
   await weighingRepo.save(record);
   return record;
+}
+
+// Endpoint baru: ambil histori lengkap semua percobaan untuk 1 record
+export async function getAttemptHistory(recordId: string) {
+  return attemptLogRepo.find({
+    where: { weighingRecordId: recordId },
+    order: { stage: "ASC", attemptNumber: "ASC" },
+  });
 }

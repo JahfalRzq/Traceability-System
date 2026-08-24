@@ -10,6 +10,19 @@ import {
 import { CurrentStage } from "../entities/WeighingRecord";
 import { Station } from "../entities/Station";
 
+
+import { getAttemptHistory } from "../services/weighingService";
+
+export async function attemptHistoryHandler(req: Request, res: Response) {
+  try {
+    const id = req.params.id as string;
+    const history = await getAttemptHistory(id);
+    res.json(history);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
 export async function scanHandler(req: Request, res: Response) {
   try {
     const { deliveryBarcode, stage } = req.body;

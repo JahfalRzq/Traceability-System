@@ -35,12 +35,12 @@ Prinsip kunci: **mini PC (edge) tidak pernah akses database langsung** — cuma 
 |---|---|
 | Backend | Express.js + TypeScript |
 | ORM | TypeORM |
-| Database | SQL Server (Docker Compose & Native support) |
+| Database | SQL Server (native Windows, belum di-Docker-kan) |
 | Caching | Redis (di-skip sementara, kode sudah ada tapi di-comment) |
 | Komunikasi Edge→Central | HTTP (axios) |
 | Serial Communication | `serialport` package, RS-232/RS-485 via COM port |
 | Dev tooling | `ts-node-dev`, TypeORM CLI migrations |
-| Containerization | Docker Compose (SQL Server + Redis + App) |
+| Containerization | Docker (direncanakan, belum dieksekusi — SQL Server tetap native untuk sekarang) |
 
 ---
 
@@ -49,7 +49,7 @@ Prinsip kunci: **mini PC (edge) tidak pernah akses database langsung** — cuma 
 ### 3.1 Setup & Infrastruktur
 - Instalasi Node.js, SQL Server, database `ScrapSystemManagement` dibuat
 - SQL Server Authentication (mixed mode) diaktifkan, user aplikasi `scrap_app_user` dibuat dengan role `db_owner`
-- Struktur folder clean: `src/{config,entities,services,controllers,routes,middlewares,utils,types,migrations,mock,providers,edge}`
+- Struktur folder microservices-ready: `services/scale-service/src/{config,entities,services,controllers,routes,middlewares,utils,types,migrations,mock}`
 - TypeORM migration berjalan (`weighing_records`, `stations` sudah ter-generate ke SQL Server)
 
 ### 3.2 Simulasi Hardware (Virtual COM Port)
@@ -93,7 +93,18 @@ Alur lengkap sudah tervalidasi end-to-end:
 - Tervalidasi end-to-end: submit → reject → scan ulang (barcode sama) → weigh ulang → submit ulang → approve → `currentStage` maju
 - **Bug ditemukan & diperbaiki:** `*RejectionReason` sebelumnya tidak ter-reset saat submit ulang, sehingga record yang sudah `APPROVED` masih membawa jejak alasan reject dari percobaan sebelumnya. Fix: `submitWeighing` sekarang set `*RejectionReason = null` di setiap submit baru.
 
-### 3.8 Endpoint yang Sudah Ada & Teruji
+### 3.9 Docker Containerization
+Repo di-refactor oleh kolaborator (root folder di-flatten, provider dikelompokkan per domain, `src/edge/` dipisah, ditambah **Swagger UI** di `/docs` dan **docker-compose.yml** yang orkestrasi SQL Server + Redis + app container.
+
+- Berhasil dijalankan penuh: `docker compose up -d` → database dibuat manual → migration dijalankan di dalam container (`npm run migration:run:prod`) → data station di-insert → aplikasi terverifikasi jalan lewat Swagger UI (`http://localhost:3001/docs`)
+- **Edge agent TETAP jalan di luar Docker** (langsung di mini PC, `npm run dev:edge`) — akses serial port dari dalam container tidak reliable, terutama di Windows
+- Kendala yang ditemukan & solusinya, dicatat untuk referensi:
+  - Password `sa` di-set sekali saat container SQL Server pertama init dan disimpan permanen di **volume** — kalau init sempat terganggu (mis. proses ke-interrupt di tengah jalan), password bisa jadi tidak konsisten dengan `.env`; solusi: hapus volume (`docker volume rm ..._sqlserver-data`) dan biarkan re-init dari nol
+  - Kalau SQL Server native Windows & SQL Server versi Docker sama-sama terinstall di mesin yang sama, SSMS bisa salah pilih protokol (Shared Memory vs TCP) saat connect ke `localhost` — perlu paksa `tcp:localhost,1433` di Server Name
+  - Ditemukan kasus SSMS gagal login terus-menerus (`Error 18456`) padahal password sudah diverifikasi benar lewat `sqlcmd` langsung di container (berkali-kali sukses) — kemungkinan bug/cache lokal di instalasi SSMS itu sendiri; solusi sementara: skip SSMS, jalankan semua setup (create database, cek tabel, insert data) lewat `docker compose exec sqlserver sqlcmd ...` langsung dari command line, yang terbukti selalu berhasil
+  - `docker compose ps` kosong / command Docker gagal dengan error `pipe/dockerDesktopLinuxEngine` → tandanya aplikasi Docker Desktop itu sendiri belum dibuka (bukan cuma container berhenti)
+
+### 3.10 Endpoint yang Sudah Ada & Teruji
 
 | Method | Endpoint | Fungsi | Middleware |
 |---|---|---|---|
@@ -117,9 +128,8 @@ Urutan di bawah bukan prioritas mutlak — didiskusikan lagi sesuai kebutuhan:
 3. **Klarifikasi brand "Kubota KLD 1000S"** — belum terverifikasi, mungkin salah catat
 4. **Real CCTV provider** — implementasi `ICctvProvider` yang beneran akses kamera, begitu ada akses hardware
 5. **Real Traceability & PO provider** — implementasi `ITraceabilityProvider`/`IPOProvider` yang beneran manggil API sistem existing, begitu ada akses
-6. **Redis caching** — kode sudah ada tapi di-comment, belum diaktifkan
-7. ~~**Docker containerization**~~ ✅ — Docker Compose sudah dibuat (SQL Server + Redis + App)
-8. **Endpoint public dashboard & public web** — belum dibuat endpoint terpisah untuk menampilkan data ke 2 kanal ini (saat ini cuma data tersimpan di `WeighingRecord`, belum ada view/endpoint khusus)
-9. **Autentikasi & otorisasi user (operator/GL/Manager)** — saat ini `operatorName`/`approverName` dikirim bebas via body request, belum ada sistem login/role yang sesungguhnya
-10. **Auth service / user management** — kalau microservices lain (auth-service dll) direncanakan, belum mulai dibangun
-11. **CI/CD, deployment production** — belum dibahas sama sekali
+6. **Redis caching** — kode sudah ada, container Redis sudah jalan di Docker Compose, tapi service belum benar-benar dipakai (`connectRedis()` belum dipanggil di `server.ts`)
+7. **Endpoint public dashboard & public web** — belum dibuat endpoint terpisah untuk menampilkan data ke 2 kanal ini (saat ini cuma data tersimpan di `WeighingRecord`, belum ada view/endpoint khusus)
+8. **Autentikasi & otorisasi user (operator/GL/Manager)** — saat ini `operatorName`/`approverName` dikirim bebas via body request, belum ada sistem login/role yang sesungguhnya
+9. **Auth service / user management** — kalau microservices lain (auth-service dll) direncanakan, belum mulai dibangun
+10. **CI/CD, deployment production** — belum dibahas sama sekali
