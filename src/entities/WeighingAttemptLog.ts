@@ -55,4 +55,5 @@ export class WeighingAttemptLog {
 
   @CreateDateColumn({ type: "datetime2" })
   createdAt!: Date;
+  
 }

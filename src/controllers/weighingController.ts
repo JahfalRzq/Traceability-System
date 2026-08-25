@@ -23,6 +23,7 @@ export async function attemptHistoryHandler(req: Request, res: Response) {
   }
 }
 
+
 export async function scanHandler(req: Request, res: Response) {
   try {
     const { deliveryBarcode, stage } = req.body;

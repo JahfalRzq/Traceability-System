@@ -70,6 +70,7 @@ export async function submitWeighing(
   if (!latestStableReading) {
     throw new Error(`Belum ada nilai timbangan stabil dari station "${stationCode}"`);
   }
+  
 
   const now = new Date();
 

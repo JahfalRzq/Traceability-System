@@ -12,6 +12,7 @@ import { identifyStation, validateStationStage } from "../middlewares/stationVal
 
 const router = Router();
 
+
 router.post("/scan", validateStationStage, scanHandler);
 router.post("/push-reading", identifyStation, pushReadingHandler); // baru — dipanggil EDGE
 router.get("/live-reading", identifyStation, liveReadingHandler);
