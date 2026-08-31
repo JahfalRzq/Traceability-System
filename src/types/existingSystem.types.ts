@@ -22,3 +22,15 @@ export interface ExistingSystemValidationResult {
   poNumber?: string;
   reason?: string;
 }
+
+export interface PlanProductionInfo {
+  scaleArea: string;
+  planDate: string;
+  planProductionKg: number;
+  estimatedScrapPercent: number;
+  scrapTolerancePercent: number;
+  scrapRangeMinKg: number;
+  scrapRangeMaxKg: number;
+  isValid: boolean;
+  invalidReason?: string;
+}
