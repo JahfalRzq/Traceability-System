@@ -1,9 +1,20 @@
 import { MockTraceabilityProvider } from "../providers/traceability/mockTraceabilityProvider";
+import { RealTraceabilityProvider } from "../providers/traceability/realTraceabilityProvider";
 import { MockPOProvider } from "../providers/po/mockPOProvider";
+import { RealPOProvider } from "../providers/po/realPOProvider";
 import { ExistingSystemValidationResult } from "../types/existingSystem.types";
+import { ITraceabilityProvider } from "../providers/traceability/traceabilityProvider.interface";
+import { IPOProvider } from "../providers/po/poProvider.interface";
 
-const traceabilityProvider = new MockTraceabilityProvider(); // nanti ganti: new RealTraceabilityProvider(config)
-const poProvider = new MockPOProvider(); // nanti ganti: new RealPOProvider(config)
+const PROVIDER_MODE = process.env.PROVIDER_MODE || "mock";
+
+const traceabilityProvider: ITraceabilityProvider =
+  PROVIDER_MODE === "real" ? new RealTraceabilityProvider() : new MockTraceabilityProvider();
+
+const poProvider: IPOProvider =
+  PROVIDER_MODE === "real" ? new RealPOProvider() : new MockPOProvider();
+
+console.log(`[existing-system-validation] Provider mode: ${PROVIDER_MODE}`);
 
 export async function validateAgainstExistingSystems(
   deliveryBarcode: string
