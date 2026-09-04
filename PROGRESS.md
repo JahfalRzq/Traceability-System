@@ -89,11 +89,13 @@ Alur lengkap sudah tervalidasi end-to-end:
 - Tervalidasi untuk skenario sukses maupun gagal (traceability not found, PO closed)
 - Real API ke sistem existing belum diimplementasi — tinggal buat implementasi baru dari interface yang sama
 
-### 3.7 Alur Reject & Retry
+### 3.7 Alur Reject & Retry + Audit Trail Lengkap
 - Tervalidasi end-to-end: submit → reject → scan ulang (barcode sama) → weigh ulang → submit ulang → approve → `currentStage` maju
-- **Bug ditemukan & diperbaiki:** `*RejectionReason` sebelumnya tidak ter-reset saat submit ulang, sehingga record yang sudah `APPROVED` masih membawa jejak alasan reject dari percobaan sebelumnya. Fix: `submitWeighing` sekarang set `*RejectionReason = null` di setiap submit baru.
+- **Koreksi penting dari PM:** karena tujuan aplikasi ini adalah traceability, semua alasan reject (bukan cuma yang terakhir) wajib tersimpan sebagai log permanen — bukan ditimpa/dihapus. Fix sebelumnya yang menghapus `*RejectionReason` saat submit ulang **sudah dibatalkan**.
+- **Entity baru `WeighingAttemptLog`** (relasi 1-ke-banyak dengan `WeighingRecord`) — setiap kali submit terjadi (approved maupun rejected), tercatat 1 baris log berisi: stage, nomor percobaan, berat, siapa submit, siapa review, hasil, dan alasan reject (kalau ada). `WeighingRecord` tetap menyimpan nilai/status **terkini** per stage untuk tampilan cepat, histori lengkap ada di tabel log ini.
+- Endpoint baru: `GET /api/weighing/:id/history` — ambil seluruh riwayat percobaan 1 record
 
-### 3.9 Docker Containerization
+### 3.8 Docker Containerization
 Repo di-refactor oleh kolaborator (root folder di-flatten, provider dikelompokkan per domain, `src/edge/` dipisah, ditambah **Swagger UI** di `/docs` dan **docker-compose.yml** yang orkestrasi SQL Server + Redis + app container.
 
 - Berhasil dijalankan penuh: `docker compose up -d` → database dibuat manual → migration dijalankan di dalam container (`npm run migration:run:prod`) → data station di-insert → aplikasi terverifikasi jalan lewat Swagger UI (`http://localhost:3001/docs`)
@@ -103,6 +105,14 @@ Repo di-refactor oleh kolaborator (root folder di-flatten, provider dikelompokka
   - Kalau SQL Server native Windows & SQL Server versi Docker sama-sama terinstall di mesin yang sama, SSMS bisa salah pilih protokol (Shared Memory vs TCP) saat connect ke `localhost` — perlu paksa `tcp:localhost,1433` di Server Name
   - Ditemukan kasus SSMS gagal login terus-menerus (`Error 18456`) padahal password sudah diverifikasi benar lewat `sqlcmd` langsung di container (berkali-kali sukses) — kemungkinan bug/cache lokal di instalasi SSMS itu sendiri; solusi sementara: skip SSMS, jalankan semua setup (create database, cek tabel, insert data) lewat `docker compose exec sqlserver sqlcmd ...` langsung dari command line, yang terbukti selalu berhasil
   - `docker compose ps` kosong / command Docker gagal dengan error `pipe/dockerDesktopLinuxEngine` → tandanya aplikasi Docker Desktop itu sendiri belum dibuka (bukan cuma container berhenti)
+  - Migration generate/run **tidak bisa** dijalankan di dalam container production (`docker compose exec app ...`) karena image production cuma berisi `dist/` (JS hasil compile), bukan source `.ts` — migration generate/run harus dijalankan **lokal** (`npm run migration:generate` / `npm run migration:run`, bukan `:prod`), lalu `docker compose up -d --build app` untuk rebuild container dengan kode terbaru
+  - Kalau SQL Server native Windows dan SQL Server Docker sama-sama listen di port 1433, koneksi dari tools lokal (migration CLI, dst) bisa salah sambung ke instance native — cek dengan `netstat -ano | findstr ":1433"`, matikan service native (`Stop-Service -Name 'MSSQLSERVER' -Force`, butuh PowerShell as Administrator)
+
+### 3.9 Real Provider Scaffolding (Traceability, PO)
+- Ditambahkan `RealTraceabilityProvider` dan `RealPOProvider` (implementasi `ITraceabilityProvider`/`IPOProvider` berbasis HTTP/axios), sebagai pendamping mock yang sudah ada — bukan pengganti
+- Saklar `PROVIDER_MODE` (env var, default `mock`) di `existingSystemValidationService.ts` menentukan implementasi mana yang dipakai — tinggal ganti ke `real` + isi `TRACEABILITY_API_BASE_URL`/`PO_API_BASE_URL`/API key begitu API asli tersedia, tanpa ubah kode pemanggil
+- Kontrak/shape response API asli di `RealTraceabilityProvider`/`RealPOProvider` masih **asumsi** (ditandai komentar `ASUMSI kontrak API`) — wajib disesuaikan begitu dokumentasi API sistem existing yang sesungguhnya didapat
+- Belum ditest end-to-end (karena belum ada API asli buat dites) — cuma dipastikan tidak merusak alur mock yang sudah jalan (`PROVIDER_MODE=mock` tetap default)
 
 ### 3.10 Endpoint yang Sudah Ada & Teruji
 
@@ -114,8 +124,9 @@ Repo di-refactor oleh kolaborator (root folder di-flatten, provider dikelompokka
 | POST | `/api/weighing/:id/submit` | Operator submit hasil timbang | `validateStationStage` |
 | POST | `/api/weighing/:id/approve` | GL/Manager approve stage | — |
 | POST | `/api/weighing/:id/reject` | GL/Manager reject stage | — |
+| GET | `/api/weighing/:id/history` | Ambil riwayat lengkap semua percobaan submit | — |
 
-**Hasil test terakhir (21 Agustus 2026):** siklus penuh `ALMC → DC → TRUCK_SCALE → COMPLETED`, CCTV snapshot, validasi traceability/PO, dan alur reject-retry-approve semuanya tervalidasi end-to-end.
+**Hasil test terakhir:** siklus penuh `ALMC → DC → TRUCK_SCALE → COMPLETED`, CCTV snapshot, validasi traceability/PO, alur reject-retry-approve, dan audit trail (`WeighingAttemptLog`) semuanya tervalidasi end-to-end di lingkungan Docker.
 
 ---
 
@@ -127,7 +138,7 @@ Urutan di bawah bukan prioritas mutlak — didiskusikan lagi sesuai kebutuhan:
 2. **Verifikasi format ASCII hardware asli** — perlu capture langsung dari indikator timbangan fisik (Avery Weigh-Tronix E1005 / ZM510-SDA) begitu ada akses, untuk mengganti placeholder format yang dipakai sekarang
 3. **Klarifikasi brand "Kubota KLD 1000S"** — belum terverifikasi, mungkin salah catat
 4. **Real CCTV provider** — implementasi `ICctvProvider` yang beneran akses kamera, begitu ada akses hardware
-5. **Real Traceability & PO provider** — implementasi `ITraceabilityProvider`/`IPOProvider` yang beneran manggil API sistem existing, begitu ada akses
+5. **Sesuaikan Real Traceability & PO provider dengan API asli** — scaffolding (`RealTraceabilityProvider`/`RealPOProvider`, saklar `PROVIDER_MODE`) sudah ada, tinggal sesuaikan endpoint URL & shape response begitu dokumentasi/akses API sistem existing yang sesungguhnya didapat, lalu test end-to-end
 6. **Redis caching** — kode sudah ada, container Redis sudah jalan di Docker Compose, tapi service belum benar-benar dipakai (`connectRedis()` belum dipanggil di `server.ts`)
 7. **Endpoint public dashboard & public web** — belum dibuat endpoint terpisah untuk menampilkan data ke 2 kanal ini (saat ini cuma data tersimpan di `WeighingRecord`, belum ada view/endpoint khusus)
 8. **Autentikasi & otorisasi user (operator/GL/Manager)** — saat ini `operatorName`/`approverName` dikirim bebas via body request, belum ada sistem login/role yang sesungguhnya
