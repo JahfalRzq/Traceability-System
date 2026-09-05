@@ -32,6 +32,10 @@ export const swaggerSpec = {
       name: "System",
       description: "Health check & status sistem",
     },
+    {
+      name: "Public Access",
+      description: "Endpoint untuk Public Dashboard (semua data real-time) & Public Web (hanya data yang sudah COMPLETED)",
+    },
   ],
   components: {
     parameters: {
@@ -512,5 +516,80 @@ Status approval menjadi **REJECTED**. Operator harus mengulang dari langkah scan
         },
       },
     },
+    "/api/public/dashboard": {
+  get: {
+    tags: ["Public Access"],
+    summary: "Data untuk Public Dashboard (semua stage, real-time)",
+    description: "Menampilkan seluruh record timbangan tanpa filter status — dipakai untuk monitoring internal semua tahap (ALMC/DC/Truck Scale).",
+    parameters: [
+      { name: "page", in: "query", schema: { type: "integer", default: 1 } },
+      { name: "limit", in: "query", schema: { type: "integer", default: 20 } },
+      { name: "stage", in: "query", schema: { type: "string", enum: ["ALMC", "DC", "TRUCK_SCALE", "COMPLETED"] } },
+      { name: "fromDate", in: "query", schema: { type: "string", format: "date" } },
+      { name: "toDate", in: "query", schema: { type: "string", format: "date" } },
+    ],
+    responses: {
+      200: {
+        description: "Daftar record dengan pagination",
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: {
+                data: { type: "array", items: { $ref: "#/components/schemas/WeighingRecord" } },
+                pagination: {
+                  type: "object",
+                  properties: {
+                    page: { type: "integer" },
+                    limit: { type: "integer" },
+                    total: { type: "integer" },
+                    totalPages: { type: "integer" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+},
+"/api/public/web": {
+  get: {
+    tags: ["Public Access"],
+    summary: "Data untuk Public Web (hanya yang sudah terbit)",
+    description: "Menampilkan HANYA record yang sudah COMPLETED dan isPublishedToPublicWeb = true — data final yang boleh ditampilkan ke publik.",
+    parameters: [
+      { name: "page", in: "query", schema: { type: "integer", default: 1 } },
+      { name: "limit", in: "query", schema: { type: "integer", default: 20 } },
+      { name: "fromDate", in: "query", schema: { type: "string", format: "date" } },
+      { name: "toDate", in: "query", schema: { type: "string", format: "date" } },
+    ],
+    responses: {
+      200: {
+        description: "Daftar record yang sudah terbit, dengan pagination",
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: {
+                data: { type: "array", items: { $ref: "#/components/schemas/WeighingRecord" } },
+                pagination: {
+                  type: "object",
+                  properties: {
+                    page: { type: "integer" },
+                    limit: { type: "integer" },
+                    total: { type: "integer" },
+                    totalPages: { type: "integer" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+},
   },
 };
