@@ -2,11 +2,14 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
-  OneToMany,
   CreateDateColumn,
-  UpdateDateColumn,
 } from "typeorm";
-import { UserRoleAssignment } from "./UserRoleAssignment";
+
+export enum UserRole {
+  OPERATOR = "OPERATOR",
+  GL_MANAGER = "GL_MANAGER",
+  ADMIN = "ADMIN",
+}
 
 @Entity({ name: "users" })
 export class User {
@@ -22,15 +25,12 @@ export class User {
   @Column({ type: "varchar", length: 100 })
   fullName!: string;
 
+  @Column({ type: "varchar", length: 20 })
+  role!: UserRole;
+
   @Column({ type: "bit", default: true })
   isActive!: boolean;
 
-  @OneToMany(() => UserRoleAssignment, (assignment) => assignment.user)
-  roleAssignments!: UserRoleAssignment[];
-
   @CreateDateColumn({ type: "datetime2" })
   createdAt!: Date;
-
-  @UpdateDateColumn({ type: "datetime2" })
-  updatedAt!: Date;
 }
