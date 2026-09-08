@@ -35,12 +35,12 @@ Prinsip kunci: **mini PC (edge) tidak pernah akses database langsung** — cuma 
 |---|---|
 | Backend | Express.js + TypeScript |
 | ORM | TypeORM |
-| Database | SQL Server (native Windows, belum di-Docker-kan) |
-| Caching | Redis (di-skip sementara, kode sudah ada tapi di-comment) |
+| Database | SQL Server (jalan di Docker container; SQL Server native Windows tetap ada di mesin dev tapi sudah tidak dipakai project ini) |
+| Caching | Redis (container sudah jalan di Docker Compose, tapi `connectRedis()` belum dipanggil di kode — belum benar-benar dipakai) |
 | Komunikasi Edge→Central | HTTP (axios) |
 | Serial Communication | `serialport` package, RS-232/RS-485 via COM port |
-| Dev tooling | `ts-node-dev`, TypeORM CLI migrations |
-| Containerization | Docker (direncanakan, belum dieksekusi — SQL Server tetap native untuk sekarang) |
+| Dev tooling | `ts-node-dev`, TypeORM CLI migrations, Swagger UI (`/docs`) |
+| Containerization | Docker — `docker-compose.yml` orkestrasi SQL Server + Redis + app container; edge agent tetap jalan native (bukan di container) |
 
 ---
 
@@ -114,19 +114,27 @@ Repo di-refactor oleh kolaborator (root folder di-flatten, provider dikelompokka
 - Kontrak/shape response API asli di `RealTraceabilityProvider`/`RealPOProvider` masih **asumsi** (ditandai komentar `ASUMSI kontrak API`) — wajib disesuaikan begitu dokumentasi API sistem existing yang sesungguhnya didapat
 - Belum ditest end-to-end (karena belum ada API asli buat dites) — cuma dipastikan tidak merusak alur mock yang sudah jalan (`PROVIDER_MODE=mock` tetap default)
 
-### 3.10 Endpoint yang Sudah Ada & Teruji
+### 3.10 Public Dashboard & Public Web (⚠️ diimplementasi, BELUM ditest)
+- **Public Dashboard** (`GET /api/public/dashboard`) — semua `WeighingRecord` tanpa filter status, buat monitoring internal real-time semua stage. Support pagination (`page`, `limit`) dan filter (`stage`, `fromDate`, `toDate`)
+- **Public Web** (`GET /api/public/web`) — cuma record dengan `isPublishedToPublicWeb = true` (sudah `COMPLETED`), buat kanal publik. Support pagination & filter tanggal
+- Kode sudah ditulis (`publicDataService.ts`, `publicController.ts`, `publicRoutes.ts`, terdaftar di `src/routes/index.ts`, sudah ditambahkan ke Swagger), **tapi belum dijalankan/ditest sama sekali** — perlu restart service dan verifikasi manual sebelum dianggap selesai
+- **Catatan keamanan:** kedua endpoint ini sengaja tanpa validasi `x-station-id` (beda dari endpoint weighing) karena dikonsumsi dashboard/website, bukan mini PC — tapi ini juga berarti belum ada proteksi akses sama sekali, nyambung ke item pending "Autentikasi & otorisasi" di bawah
 
-| Method | Endpoint | Fungsi | Middleware |
-|---|---|---|---|
-| POST | `/api/weighing/scan` | Mulai sesi timbang (scan barcode) + validasi existing system | `validateStationStage` |
-| POST | `/api/weighing/push-reading` | Edge push hasil parsing serial + CCTV snapshot | `identifyStation` |
-| GET | `/api/weighing/live-reading` | Polling nilai stabil terkini per-station | `identifyStation` |
-| POST | `/api/weighing/:id/submit` | Operator submit hasil timbang | `validateStationStage` |
-| POST | `/api/weighing/:id/approve` | GL/Manager approve stage | — |
-| POST | `/api/weighing/:id/reject` | GL/Manager reject stage | — |
-| GET | `/api/weighing/:id/history` | Ambil riwayat lengkap semua percobaan submit | — |
+### 3.11 Endpoint yang Sudah Ada
 
-**Hasil test terakhir:** siklus penuh `ALMC → DC → TRUCK_SCALE → COMPLETED`, CCTV snapshot, validasi traceability/PO, alur reject-retry-approve, dan audit trail (`WeighingAttemptLog`) semuanya tervalidasi end-to-end di lingkungan Docker.
+| Method | Endpoint | Fungsi | Middleware | Status |
+|---|---|---|---|---|
+| POST | `/api/weighing/scan` | Mulai sesi timbang (scan barcode) + validasi existing system | `validateStationStage` | ✅ Teruji |
+| POST | `/api/weighing/push-reading` | Edge push hasil parsing serial + CCTV snapshot | `identifyStation` | ✅ Teruji |
+| GET | `/api/weighing/live-reading` | Polling nilai stabil terkini per-station | `identifyStation` | ✅ Teruji |
+| POST | `/api/weighing/:id/submit` | Operator submit hasil timbang | `validateStationStage` | ✅ Teruji |
+| POST | `/api/weighing/:id/approve` | GL/Manager approve stage | — | ✅ Teruji |
+| POST | `/api/weighing/:id/reject` | GL/Manager reject stage | — | ✅ Teruji |
+| GET | `/api/weighing/:id/history` | Ambil riwayat lengkap semua percobaan submit | — | ✅ Teruji |
+| GET | `/api/public/dashboard` | Data semua record buat monitoring internal | — | ⚠️ Belum ditest |
+| GET | `/api/public/web` | Data record yang sudah terbit ke publik | — | ⚠️ Belum ditest |
+
+**Hasil test terakhir yang tervalidasi:** siklus penuh `ALMC → DC → TRUCK_SCALE → COMPLETED`, CCTV snapshot, validasi traceability/PO, alur reject-retry-approve, dan audit trail (`WeighingAttemptLog`) semuanya tervalidasi end-to-end di lingkungan Docker.
 
 ---
 
@@ -134,13 +142,13 @@ Repo di-refactor oleh kolaborator (root folder di-flatten, provider dikelompokka
 
 Urutan di bawah bukan prioritas mutlak — didiskusikan lagi sesuai kebutuhan:
 
-1. **Integrasi barcode scanner & printer fisik** — alur "scan barang → print label spesifikasi" dari PPT belum diimplementasi (baru simulasi via REST manual)
-2. **Verifikasi format ASCII hardware asli** — perlu capture langsung dari indikator timbangan fisik (Avery Weigh-Tronix E1005 / ZM510-SDA) begitu ada akses, untuk mengganti placeholder format yang dipakai sekarang
-3. **Klarifikasi brand "Kubota KLD 1000S"** — belum terverifikasi, mungkin salah catat
-4. **Real CCTV provider** — implementasi `ICctvProvider` yang beneran akses kamera, begitu ada akses hardware
-5. **Sesuaikan Real Traceability & PO provider dengan API asli** — scaffolding (`RealTraceabilityProvider`/`RealPOProvider`, saklar `PROVIDER_MODE`) sudah ada, tinggal sesuaikan endpoint URL & shape response begitu dokumentasi/akses API sistem existing yang sesungguhnya didapat, lalu test end-to-end
-6. **Redis caching** — kode sudah ada, container Redis sudah jalan di Docker Compose, tapi service belum benar-benar dipakai (`connectRedis()` belum dipanggil di `server.ts`)
-7. **Endpoint public dashboard & public web** — belum dibuat endpoint terpisah untuk menampilkan data ke 2 kanal ini (saat ini cuma data tersimpan di `WeighingRecord`, belum ada view/endpoint khusus)
-8. **Autentikasi & otorisasi user (operator/GL/Manager)** — saat ini `operatorName`/`approverName` dikirim bebas via body request, belum ada sistem login/role yang sesungguhnya
+1. **Test endpoint Public Dashboard & Public Web** — kode sudah ada (lihat 3.10), tinggal restart service dan verifikasi manual (`GET /api/public/dashboard`, `GET /api/public/web`, coba filter & pagination-nya)
+2. **Integrasi barcode scanner & printer fisik** — alur "scan barang → print label spesifikasi" dari PPT belum diimplementasi (baru simulasi via REST manual)
+3. **Verifikasi format ASCII hardware asli** — perlu capture langsung dari indikator timbangan fisik (Avery Weigh-Tronix E1005 / ZM510-SDA) begitu ada akses, untuk mengganti placeholder format yang dipakai sekarang
+4. **Klarifikasi brand "Kubota KLD 1000S"** — belum terverifikasi, mungkin salah catat
+5. **Real CCTV provider** — implementasi `ICctvProvider` yang beneran akses kamera, begitu ada akses hardware
+6. **Sesuaikan Real Traceability & PO provider dengan API asli** — scaffolding (`RealTraceabilityProvider`/`RealPOProvider`, saklar `PROVIDER_MODE`) sudah ada, tinggal sesuaikan endpoint URL & shape response begitu dokumentasi/akses API sistem existing yang sesungguhnya didapat, lalu test end-to-end
+7. **Redis caching** — kode sudah ada, container Redis sudah jalan di Docker Compose, tapi service belum benar-benar dipakai (`connectRedis()` belum dipanggil di `server.ts`)
+8. **Autentikasi & otorisasi user (operator/GL/Manager)** — saat ini `operatorName`/`approverName` dikirim bebas via body request, belum ada sistem login/role yang sesungguhnya; juga perlu buat proteksi endpoint Public Dashboard/Web
 9. **Auth service / user management** — kalau microservices lain (auth-service dll) direncanakan, belum mulai dibangun
 10. **CI/CD, deployment production** — belum dibahas sama sekali
