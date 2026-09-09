@@ -1,12 +1,13 @@
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
+import jwt, { SignOptions } from "jsonwebtoken";
 import { AppDataSource } from "../config/database";
 import { User } from "../entities/User";
 
 const userRepo = AppDataSource.getRepository(User);
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "8h";
+const JWT_EXPIRES_IN = (process.env.JWT_EXPIRES_IN || "8h") as SignOptions["expiresIn"];
+
 
 export async function hashPassword(plainPassword: string): Promise<string> {
   return bcrypt.hash(plainPassword, 10);
